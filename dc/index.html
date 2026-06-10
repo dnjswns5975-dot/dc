@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Descartes Neural Analytics</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <!-- Canvas Particle BG -->
+    <canvas id="particleCanvas"></canvas>
+
+    <!-- Overlay for panel zoom -->
+    <div id="overlay" class="overlay"></div>
+
+    <!-- Paper Detail Modal -->
+    <div id="paperModal" class="modal-backdrop">
+        <div class="modal-card">
+            <button class="modal-close" id="modalClose"><i class="fa-solid fa-xmark"></i></button>
+            <div class="modal-header">
+                <span class="modal-badge" id="modal-year"></span>
+                <span class="modal-badge modal-cite-badge" id="modal-citations"></span>
+            </div>
+            <h2 class="modal-title" id="modal-title"></h2>
+            <div class="modal-meta">
+                <span id="modal-authors"><i class="fa-solid fa-user-pen"></i> </span>
+                <span id="modal-journal"><i class="fa-solid fa-book"></i> </span>
+                <span id="modal-institution"><i class="fa-solid fa-building-columns"></i> </span>
+            </div>
+            <div class="modal-section">
+                <h4><i class="fa-solid fa-tags"></i> 키워드</h4>
+                <div class="keyword-tags" id="modal-keywords"></div>
+            </div>
+            <!-- AI Paper Copilot Section -->
+            <div class="modal-section copilot-section">
+                <h4><i class="fa-solid fa-brain"></i> AI Research Copilot <span class="badge-beta">PRO</span></h4>
+                <div class="copilot-container">
+                    <div class="copilot-tabs">
+                        <button id="copilotTabSummary" class="copilot-tab active"><i class="fa-solid fa-list-check"></i> AI 3단 요약</button>
+                        <button id="copilotTabQA" class="copilot-tab"><i class="fa-solid fa-comments"></i> 대화형 Q&A</button>
+                    </div>
+                    <div class="copilot-content">
+                        <!-- AI Summary Pane -->
+                        <div id="copilotSummaryContent" class="copilot-pane">
+                            <div class="summary-item">
+                                <span class="summary-label"><i class="fa-solid fa-bullseye"></i> 연구 목적</span>
+                                <p id="summaryObjective" class="summary-text">초록을 분석하여 목적을 도출 중입니다...</p>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label"><i class="fa-solid fa-award"></i> 주요 기여</span>
+                                <p id="summaryContribution" class="summary-text">초록을 분석하여 성과를 도출 중입니다...</p>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label"><i class="fa-solid fa-seedling"></i> 학술적 의의</span>
+                                <p id="summarySignificance" class="summary-text">초록을 분석하여 의의를 도출 중입니다...</p>
+                            </div>
+                        </div>
+                        
+                        <!-- AI QA Pane -->
+                        <div id="copilotQAContent" class="copilot-pane hidden">
+                            <div class="qa-suggested-questions">
+                                <button class="qa-q-btn" data-q="1"><i class="fa-solid fa-circle-question"></i> 이 논문의 핵심 주장은?</button>
+                                <button class="qa-q-btn" data-q="2"><i class="fa-solid fa-circle-question"></i> 학술적으로 어떤 의의가?</button>
+                                <button class="qa-q-btn" data-q="3"><i class="fa-solid fa-circle-question"></i> 보완 가능한 연구의 한계는?</button>
+                            </div>
+                            <div class="qa-answer-box">
+                                <div class="qa-answer-loading hidden" id="qaAnswerLoading">
+                                    <div class="loader-dots">
+                                        <span></span><span></span><span></span>
+                                    </div>
+                                    <span>AI가 초록 텍스트에서 해답을 연산 중...</span>
+                                </div>
+                                <div class="qa-answer-text" id="qaAnswerText">위의 권장 질문을 클릭하면 AI 분석 답변이 출력됩니다.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Original Abstract collapsed by default -->
+            <details class="abstract-details">
+                <summary><i class="fa-solid fa-align-left"></i> 원문 초록 전체 보기</summary>
+                <p class="modal-abstract" id="modal-abstract"></p>
+            </details>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <i class="fa-brands fa-space-awesome"></i>
+                DESCARTES <span>NEURAL ENGINE</span>
+            </div>
+            <div class="header-center">
+                <!-- Year Range Filter -->
+                <div class="year-filter-wrap">
+                    <label>연도 범위</label>
+                    <div class="slider-group">
+                        <input type="range" id="yearMin" min="1990" max="2024" value="1990" class="year-slider">
+                        <input type="range" id="yearMax" min="1990" max="2024" value="2024" class="year-slider">
+                    </div>
+                    <span class="year-label" id="yearRangeLabel">전체</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="ai-status">
+                    <span class="pulse-dot"></span> AI SYNC ACTIVE
+                </div>
+            </div>
+        </header>
+
+        <!-- AI Insight Panel -->
+        <section class="panel insight-panel">
+            <div class="insight-icon-wrap"><i class="fa-solid fa-microchip"></i></div>
+            <div class="insight-text" id="ai-insight-text">데이터를 동기화하고 인사이트를 추출 중입니다...</div>
+        </section>
+
+        <!-- AI Research Gap Analyzer Panel -->
+        <section class="panel gap-analyzer-panel" id="gapAnalyzerPanel">
+            <div class="panel-header">
+                <h2><i class="fa-solid fa-wand-magic-sparkles"></i> AI Research Gap Navigator <span class="badge-beta">PRO</span></h2>
+                <div class="header-controls">
+                    <button id="analyzeGapBtn" class="premium-btn">
+                        <i class="fa-solid fa-network-wired"></i> ANALYZE RESEARCH GAP
+                    </button>
+                    <button class="expand-btn"><i class="fa-solid fa-expand"></i></button>
+                </div>
+            </div>
+            
+            <div class="gap-analyzer-content">
+                <!-- Initial State -->
+                <div class="gap-init-state" id="gapInitState">
+                    <div class="radar-ping-container">
+                        <div class="radar-ping"></div>
+                        <i class="fa-solid fa-satellite-dish"></i>
+                    </div>
+                    <p>현재 연도 범위 및 필터링된 데이터를 바탕으로 학술 지형 내 개척되지 않은 융합 연구 주제(Research Gap)를 탐색합니다. 위의 버튼을 눌러 분석을 시작하세요.</p>
+                </div>
+                
+                <!-- Scanning/Loading State -->
+                <div class="gap-scanning-state hidden" id="gapScanningState">
+                    <div class="scanner-bar"></div>
+                    <div class="scanner-logs">
+                        <div class="scan-log-line" id="scanLog1">> [INIT] 학술 데이터셋 의미론적 연결망 복원 중...</div>
+                        <div class="scan-log-line hidden" id="scanLog2">> [CALC] 키워드 동시 출현(Co-occurrence) 희소 행렬 연산 중...</div>
+                        <div class="scan-log-line hidden" id="scanLog3">> [RANK] 잠재적 융합 가치 및 미개척 영역 스코어링 완료.</div>
+                    </div>
+                </div>
+
+                <!-- Results Grid -->
+                <div class="gap-results-grid hidden" id="gapResultsGrid">
+                    <!-- Dynamic Cards Generated by JS -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Top Metrics -->
+        <section class="metrics-grid">
+            <div class="metric-card" id="mc-papers">
+                <div class="metric-icon"><i class="fa-solid fa-layer-group"></i></div>
+                <div class="metric-info">
+                    <span class="metric-value" id="total-papers">0</span>
+                    <span class="metric-label">총 연구 문헌</span>
+                </div>
+                <canvas class="sparkline" id="spark-papers"></canvas>
+            </div>
+            <div class="metric-card" id="mc-citations">
+                <div class="metric-icon"><i class="fa-solid fa-quote-right"></i></div>
+                <div class="metric-info">
+                    <span class="metric-value" id="total-citations">0</span>
+                    <span class="metric-label">누적 피인용 수</span>
+                </div>
+                <canvas class="sparkline" id="spark-citations"></canvas>
+            </div>
+            <div class="metric-card highlight" id="mc-hindex">
+                <div class="metric-icon glow"><i class="fa-solid fa-fire-flame-curved"></i></div>
+                <div class="metric-info">
+                    <span class="metric-value" id="h-index">0</span>
+                    <span class="metric-label">H-Index (영향력 지수)</span>
+                </div>
+            </div>
+            <div class="metric-card" id="mc-avg">
+                <div class="metric-icon"><i class="fa-solid fa-arrow-trend-up"></i></div>
+                <div class="metric-info">
+                    <span class="metric-value" id="avg-citations">0</span>
+                    <span class="metric-label">평균 피인용률</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Viz Row -->
+        <div class="main-viz-grid">
+            <section class="panel radar-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-network-wired"></i> 지식 구조 맵 (Keyword Constellation)</h2>
+                    <div class="header-controls">
+                        <div class="map-toggle-group">
+                            <button id="mapModeKw" class="map-toggle-btn active">키워드</button>
+                            <button id="mapModeAuth" class="map-toggle-btn">공동 연구</button>
+                        </div>
+                        <button class="expand-btn"><i class="fa-solid fa-expand"></i></button>
+                    </div>
+                </div>
+                <div id="networkRadar" class="network-container"></div>
+            </section>
+
+            <div class="charts-column">
+                <section class="panel chart-panel">
+                    <div class="panel-header">
+                        <h2><i class="fa-solid fa-chart-area"></i> 연도별 지식 생산 추이</h2>
+                        <button class="expand-btn"><i class="fa-solid fa-expand"></i></button>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="yearlyChart"></canvas>
+                    </div>
+                </section>
+
+                <section class="panel chart-panel">
+                    <div class="panel-header">
+                        <h2><i class="fa-solid fa-chart-bar"></i> 피인용 분포 (Citation Histogram)</h2>
+                        <button class="expand-btn"><i class="fa-solid fa-expand"></i></button>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="citationHistogram"></canvas>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- Keyword Trend Panel (NEW) -->
+        <section class="panel kw-trend-panel" id="kwTrendPanel">
+            <div class="panel-header">
+                <h2><i class="fa-solid fa-fire"></i> 키워드 트렌드 히트맵 <span class="badge-live">LIVE</span></h2>
+                <div class="header-controls">
+                    <span class="kw-trend-subtitle" id="kwTrendSubtitle">현재 연도 범위의 상위 키워드 연도별 출현 빈도</span>
+                    <button class="expand-btn"><i class="fa-solid fa-expand"></i></button>
+                </div>
+            </div>
+            <div class="kw-trend-body">
+                <div class="kw-trend-chart-wrap">
+                    <canvas id="kwTrendChart"></canvas>
+                </div>
+                <div class="kw-trend-legend" id="kwTrendLegend"></div>
+            </div>
+        </section>
+
+        <!-- Keywords + Rankings Row -->
+        <div class="middle-grid">
+            <section class="panel chart-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-chart-pie"></i> 핵심 담론 점유율</h2>
+                    <button class="expand-btn"><i class="fa-solid fa-expand"></i></button>
+                </div>
+                <div class="chart-container">
+                    <canvas id="keywordChart"></canvas>
+                </div>
+            </section>
+
+            <section class="panel rankings-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-crown"></i> 최상위 연구자 / 기관</h2>
+                    <button class="expand-btn"><i class="fa-solid fa-expand"></i></button>
+                </div>
+                <div class="rankings-container">
+                    <div class="ranking-column">
+                        <h3>TOP AUTHORS</h3>
+                        <ul id="top-authors" class="ranking-list"></ul>
+                    </div>
+                    <div class="ranking-column">
+                        <h3>TOP INSTITUTIONS</h3>
+                        <ul id="top-institutions" class="ranking-list"></ul>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Data Table -->
+        <section class="panel table-panel">
+            <div class="panel-header">
+                <h2><i class="fa-solid fa-database"></i> 연구 데이터 원장 <span class="result-count" id="resultCount"></span></h2>
+                <div class="header-controls">
+                    <button id="exportBtn" class="premium-btn">
+                        <i class="fa-solid fa-cloud-arrow-down"></i> EXPORT CSV
+                    </button>
+                    <button id="favFilterBtn" class="fav-btn">
+                        <i class="fa-solid fa-heart"></i> 찜 목록
+                    </button>
+                    <div class="search-box">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="searchInput" placeholder="논문, 저자, 학술지 검색...">
+                    </div>
+                    <button class="expand-btn"><i class="fa-solid fa-expand"></i></button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table id="dataTable">
+                    <thead>
+                        <tr>
+                            <th data-sort="title">논문명 <i class="fa-solid fa-sort"></i></th>
+                            <th data-sort="authors">저자 <i class="fa-solid fa-sort"></i></th>
+                            <th data-sort="journal">학술지 <i class="fa-solid fa-sort"></i></th>
+                            <th data-sort="year">연도 <i class="fa-solid fa-sort"></i></th>
+                            <th data-sort="citations">인용 <i class="fa-solid fa-sort"></i></th>
+                            <th>찜 ♥</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
